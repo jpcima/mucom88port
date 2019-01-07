@@ -51,6 +51,7 @@ bool DriverRT::Init(uint rate, uint ch, uint buflen)
 	if (!src)
 	{
 		delete audio;
+		this->audio = NULL;
 		fprintf(stderr, "resampler: %s\n", src_strerror(srcerror));
 		return false;
 	}
