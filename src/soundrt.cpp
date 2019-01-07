@@ -11,6 +11,7 @@ DriverRT::DriverRT()
 {
 	audio = NULL;
 	gen = NULL;
+	src = NULL;
 	ready = false;
 }
 
