@@ -21,13 +21,6 @@ namespace SoundDriver
 
 		virtual bool Init(uint rate, uint ch, uint buflen) = 0;
 		virtual bool Cleanup() = 0;
-		void MixAlways(bool yes) { mixalways = yes; }
-
-	protected:
-		// uint buffersize;
-		// uint sampleshift;
-		// volatile bool playing;
-		bool mixalways;
 	};
 
 	class SoundBlockGenerator
