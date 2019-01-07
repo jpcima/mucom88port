@@ -155,8 +155,8 @@ public:
 	int GetStatus(int option);
 	void SetVMOption(int option, int mode);
 
-	char *GetInfoBuffer(void);
-	char *GetInfoBufferByName(char *name);
+	const char *GetInfoBuffer(void);
+	const char *GetInfoBufferByName(const char *name);
 	void DeleteInfoBuffer(void);
 	void PrintInfoBuffer(void);
 
@@ -166,7 +166,7 @@ public:
 
 	int ConvertADPCM(const char *fname, const char *sname);
 	void GetMD5(char *res, char *buffer, int size);
-	void SetUUID(char *uuid);
+	void SetUUID(const char *uuid);
 	void SetVolume(int fmvol, int ssgvol);
 	void SetFastFW(int value);
 
@@ -193,10 +193,10 @@ private:
 	unsigned char linebuf[MUCOM_LINE_MAXSTR];
 	char infoname[64];
 	CMemBuf *infobuf;
-	char user_uuid[64];
+	char user_uuid[64+1];
 
-	char *GetTextLine(char *text);
-	int StoreBasicSource(char *text, int line, int add);
+	const char *GetTextLine(const char *text);
+	int StoreBasicSource(const char *text, int line, int add);
 
 	//		Virtual Machine
 	//

@@ -8,18 +8,29 @@
 //
 
 #include <stdio.h>
-#include <stdio.h>
+#include <uv.h>
 #include "mucomvm.h"
-#include "soundds.h"
 #include "adpcm.h"
 #include "mucomerror.h"
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+#ifndef _WIN32
+#include <unistd.h>
+
+static void Sleep(int ms)
+{
+    usleep(ms * (useconds_t)1000);
+}
+
+#endif
 
 #define RATE 55467				// Sampling Rate 55K
 #define BUFSIZE 200				// Stream Buffer 200ms
 #define baseclock 7987200		// Base Clock
 
 #define USE_SCCI
-#define USE_HIGH_LEVEL_COUNTER
 
 /*------------------------------------------------------------*/
 /*
@@ -38,12 +49,15 @@ mucomvm::mucomvm(void)
 	snddrv = NULL;
 	opn = NULL;
 	membuf = NULL;
-	master_window = NULL;
+	loop = uv_default_loop();
+	timer = NULL;
 	m_pChip = NULL;
 
 	channel_max = 0;
 	channel_size = 0;
 	pchdata = NULL;
+
+	soundblock = new float[2 * soundblocklen];
 }
 
 mucomvm::~mucomvm(void)
@@ -52,20 +66,18 @@ mucomvm::~mucomvm(void)
 		for (int i = 0; i < 300 && sending; i++) Sleep(10);
 		playflag = false;
 	}
-	if (timerid)
+	if (timer)
 	{
-		timeKillEvent(timerid);
-		timeEndPeriod(timer_period);
-		timerid = 0;
+		uv_timer_stop(timer);
+		delete timer;
 	}
 	//	スレッドを停止する
-	StopThread();
+	delete snddrv;
 
 	if (opn) {
 		delete opn;
 		opn = NULL;
 	}
-	if (snddrv != NULL) delete snddrv;
 	if (membuf) delete membuf;
 
 	if (pchdata) {
@@ -80,6 +92,7 @@ mucomvm::~mucomvm(void)
 	}
 #endif
 
+	delete[] soundblock;
 }
 
 
@@ -148,7 +161,6 @@ void mucomvm::InitSoundSystem(void)
 	playflag = false;
 	predelay = 0;
 	sending = false;
-	threadflag = false;
 	busyflag = false;
  
 	//		SCCI対応
@@ -164,8 +176,8 @@ void mucomvm::InitSoundSystem(void)
 	}
 #endif
 
-	snddrv = new WinSoundDriver::DriverDS;
-	if (master_window) snddrv->SetHWND(master_window);
+	snddrv = new SoundDriver::DriverRT;
+	snddrv->SetGenerator(this);
 	snddrv->Init(RATE, 2, BUFSIZE);
 
 	opn = new FM::OPNA;
@@ -181,97 +193,29 @@ void mucomvm::InitSoundSystem(void)
 		ResetFM();
 	}
 
-	//		先行するサウンドバッファを作っておく
-	//
-	int size;
-	size = RATE * 40 / 1000 * 2;
-	snddrv->GetSoundBuffer()->PrepareBuffer(size);
-	snddrv->GetSoundBuffer()->UpdateBuffer(size);
-	//pooltime = snddrv->GetSoundBuffer()->GetPoolSize();
-
 	//		タイマー初期化
 	//
-	timerid = 0;
 	time_master = 0;
 	time_stream = 20;// buffer_length / num_blocks;
-	time_scount = 0;
 	time_intcount = 0;
 	time_interrupt = 10;
 	resetElapsedTime();
 
-	TIMECAPS caps;
-	if (timeGetDevCaps(&caps, sizeof(TIMECAPS)) == TIMERR_NOERROR) {
-		// マルチメディアタイマーのサービス精度を最大に
-		HANDLE myth = GetCurrentThread();
-		SetThreadPriority(myth, THREAD_PRIORITY_HIGHEST);
+	if (timer) {
+		uv_timer_stop(timer);
+		delete timer;
+	}
 
-		timer_period = caps.wPeriodMin;
-		timeBeginPeriod(timer_period);
-		timerid = timeSetEvent(timer_period, caps.wPeriodMin, TimeProc, reinterpret_cast<DWORD>(this), (UINT)TIME_PERIODIC);
-		if (!timerid)
-		{
-			timeEndPeriod(timer_period);
-		}
-	}
-	else {
-		//	失敗した時
-		timer_period = -1;
-		timerid = 0;
-		MessageBox(NULL, "Unable to start timer.", "Error", 0);
-	}
+	timer = new uv_timer_t;
+	timer->data = this;
+	uv_timer_init(loop, timer);
+	uv_timer_start(timer, TimeProc, 1, 1);
 
 	//	ストリーム用スレッド
-	StartThread();
 	playflag = true;
 	//printf("#Stream update %dms.\n", time_stream);
-}
 
-int mucomvm::StartThread(void)
-{
-	// ストリームスレッドを開始する
-
-	// イベントオブジェクトを作成する
-	hevent = CreateEvent(NULL, FALSE, FALSE, NULL);
-	// スレッドを生成する
-	hthread = CreateThread(NULL, 0x40000, (LPTHREAD_START_ROUTINE)mucomvm::vThreadFunc, (LPVOID)this, NULL, &threadid);
-	if (hthread == NULL) {
-		return -1;
-	}
-	// スレッドの優先順位を変更する
-	SetThreadPriority(hthread, THREAD_PRIORITY_TIME_CRITICAL);
-	return 0;
-}
-
-
-DWORD WINAPI mucomvm::vThreadFunc(LPVOID pParam) {
-	mucomvm *pThis = (mucomvm *)pParam;
-	pThis->ThreadFunc();
-	return 0;
-}
-
-int mucomvm::StopThread(void)
-{
-	// ストリームスレッドを停止する
-	if (threadflag == FALSE) return -1;
-
-	// イベントオブジェクト破棄
-	threadflag = FALSE;
-	SetEvent(hevent);
-	CloseHandle(hevent);
-	hevent = NULL;
-	// スレッド停止を待つ
-	DWORD	dActive = 0;
-	GetExitCodeThread(hthread, &dActive);
-	if (dActive == STILL_ACTIVE) {
-		WaitForSingleObject(hthread, INFINITE);
-	}
-	// スレッド破棄
-	CloseHandle(hthread);
-
-	hthread = NULL;
-	threadid = 0;
-
-	return 0;
+	snddrv->SetReady();
 }
 
 
@@ -864,35 +808,19 @@ void mucomvm::SkipPlay(int count)
 
 int mucomvm::getElapsedTime(void)
 {
-#ifdef USE_HIGH_LEVEL_COUNTER
-
-	int64_t cur_ft;		// 100ナノ秒単位の時間
-	int64_t pass_ft;
-	double ms;
-	GetSystemTimeAsFileTime((FILETIME *)&cur_ft);
-	pass_ft = cur_ft - last_ft;
+	int64_t cur_ft = uv_hrtime();
+	int64_t pass_ft = cur_ft - last_ft;
 	last_ft = cur_ft;
-
-	ms = ((double)pass_ft) * 0.0001f;	// ミリ秒単位に直す
-	//printf( "(%f)\n",ms );
-
+	double ms = pass_ft * 1e-6;
 	pass_tick = (int)ms;
 	return (int)(ms * 1024.0);
-
-#else
-	int curtime;
-	curtime = timeGetTime();
-	pass_tick = curtime - last_tick;
-	last_tick = curtime;
-	return 1024 * pass_tick;
-#endif
 }
 
 
 void mucomvm::resetElapsedTime(void)
 {
 	pass_tick = 0;
-	last_tick = 0;
+	last_ft = uv_hrtime();
 }
 
 
@@ -907,20 +835,15 @@ void mucomvm::UpdateTime(void)
 		return;
 	}
 
-#ifndef USE_HIGH_LEVEL_COUNTER
 	if (pass_tick <= 0) return;
-#endif
 
-	bool stream_event = false;
 	bool int3_mode = int3flag;
 	time_master += pass_tick;//timer_period;
-	time_scount += pass_tick;//timer_period;
 
 	if (int3mask & 128) int3_mode = false;		// 割り込みマスク
 
 	if (opn->Count(base)) {
 		if (int3_mode) {
-			stream_event = true;
 			if (predelay == 0) {
 				int times = 1;
 				if (m_option & VM_OPTION_FASTFW) times = m_fastfw;
@@ -941,68 +864,46 @@ void mucomvm::UpdateTime(void)
 		}
 	}
 
-	if ((stream_event == false) && (int3_mode == false)) {
-		// INT3が無効な場合もストリーム再生は続ける
-		if (time_scount > 20 ) {
-			stream_event = true;
-			time_scount = 0;
-		}
-	}
-
-	if (stream_event) {
-		SetEvent(hevent);
-		//StreamSend();
-	}
-
 	//if (pass_tick>1) printf("INT%d (%d) %d\n", time_scount, pass_tick, time_master);
 
 }
 
 
-void mucomvm::ThreadFunc() {
-	// ストリームスレッドループ
-	threadflag = true;
-	while (threadflag) {
-		if (WaitForSingleObject(hevent, 20) == WAIT_TIMEOUT) {
-			continue;
-		}
-		StreamSend();
-	}
+void mucomvm::StartGenerateSound()
+{
+	sending = true;
 }
 
-
-void mucomvm::StreamSend(void)
+void mucomvm::EndGenerateSound()
 {
-	//		ストリーム更新(別スレッド)
-	//
-	if (!InterlockedExchange(&sending, true))
-	{
-		int writelength;
-		writelength = snddrv->PrepareSend();
-		if (writelength) {
-			FM::Sample *smp;
-			int size;
-			size = writelength >> 2;
-			smp = snddrv->GetSoundBuffer()->PrepareBuffer(size * 2);
-			if ((m_option & VM_OPTION_FMMUTE) == 0) {
-				opn->Mix(smp, size);
-			}
-			snddrv->GetSoundBuffer()->UpdateBuffer(size * 2);
-		}
-		snddrv->Send();
+	sending = false;
+}
 
-	// 終了
-	InterlockedExchange(&sending, false);
-	time_scount = 0;
-	}
+uint mucomvm::GenerateSoundBlock(float **data)
+{
+	// jpcima: what to do about INT3 flag?
 
+	float *buf = soundblock;
+
+	FM::Sample opnsamples[2 * soundblocklen];
+	memset(opnsamples, 0, sizeof(opnsamples));
+	if ((m_option & VM_OPTION_FMMUTE) == 0)
+		opn->Mix(opnsamples, soundblocklen);
+	else
+		memset(opnsamples, 0, sizeof(opnsamples));
+
+	for (uint i = 0; i < 2 * soundblocklen; ++i)
+		buf[i] = opnsamples[i] * (1.0f / 32768);
+
+	*data = buf;
+	return soundblocklen;
 }
 
 //  TimeProc
 //
-void CALLBACK mucomvm::TimeProc(UINT uid, UINT, DWORD user, DWORD, DWORD)
+void CALLBACK mucomvm::TimeProc(uv_timer_t *tm)
 {
-	mucomvm* inst = reinterpret_cast<mucomvm*>(user);
+	mucomvm* inst = reinterpret_cast<mucomvm*>(tm->data);
 	if (inst){
 		//SetEvent(inst->hevent);
 		inst->UpdateTime();

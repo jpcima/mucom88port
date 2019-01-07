@@ -37,9 +37,9 @@ public:
 	void Put( unsigned char data );
 	void Put( float data );
 	void Put( double data );
-	void PutStr( char *data );
-	void PutStrDQ( char *data );
-	void PutStrBlock( char *data );
+	void PutStr( const char *data );
+	void PutStrDQ( const char *data );
+	void PutStrBlock( const char *data );
 	void PutCR( void );
 	void PutData( void *data, int sz );
 	void PutStrf( char *format, ... );

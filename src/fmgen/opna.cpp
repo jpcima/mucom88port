@@ -25,10 +25,6 @@
 //
 #define NO_BITTYPE_EMULATION
 
-#ifdef BUILD_OPNA
-#include "file.h"
-#endif
-
 namespace FM
 {
 
@@ -1269,23 +1265,23 @@ bool OPNA::LoadRhythmSample(const char* path)
 
 	for (i=0; i<6; i++)
 	{
-		FileIO file;
+		FILE* file;
 		uint32 fsize;
-		char buf[MAX_PATH] = "";
+		std::string buf;
 		if (path)
-			strncpy(buf, path, MAX_PATH);
-		strncat(buf, "2608_", MAX_PATH);
-		strncat(buf, rhythmname[i], MAX_PATH);
-		strncat(buf, ".WAV", MAX_PATH);
+			buf = path;
+		buf += "2608_";
+		buf += rhythmname[i];
+		buf += ".WAV";
 
-		if (!file.Open(buf, FileIO::readonly))
+		if (!(file = fopen(buf.c_str(), "rb")))
 		{
 			if (i != 5)
 				break;
 			if (path)
-				strncpy(buf, path, MAX_PATH);
-			strncpy(buf, "2608_RYM.WAV", MAX_PATH);
-			if (!file.Open(buf, FileIO::readonly))
+				buf = path;
+			buf += "2608_RYM.WAV";
+			if (!(file = fopen(buf.c_str(), "rb")))
 				break;
 		}
 		
@@ -1301,29 +1297,36 @@ bool OPNA::LoadRhythmSample(const char* path)
 			uint16 size;
 		} whdr;
 
-		file.Seek(0x10, FileIO::begin);
-		file.Read(&whdr, sizeof(whdr));
+		fseek(file, 0x10, SEEK_SET);
+		fread(&whdr, sizeof(whdr), 1, file);
 		
 		uint8 subchunkname[4];
 		fsize = 4 + whdr.chunksize - sizeof(whdr);
 		do 
 		{
-			file.Seek(fsize, FileIO::current);
-			file.Read(&subchunkname, 4);
-			file.Read(&fsize, 4);
+			fseek(file, fsize, SEEK_CUR);
+			fread(&subchunkname, 1, 4, file);
+			fread(&fsize, 4, 1, file);
 		} while (memcmp("data", subchunkname, 4));
 
 		fsize /= 2;
 		if (fsize >= 0x100000 || whdr.tag != 1 || whdr.nch != 1)
+		{
+			fclose(file);
 			break;
+		}
 		fsize = Max(fsize, (1<<31)/1024);
 		
 		delete rhythm[i].sample;
 		rhythm[i].sample = new int16[fsize];
 		if (!rhythm[i].sample)
+		{
+			fclose(file);
 			break;
+		}
 		
-		file.Read(rhythm[i].sample, fsize * 2);
+		fread(rhythm[i].sample, 1, fsize * 2, file);
+		fclose(file);
 		
 		rhythm[i].rate = whdr.rate;
 		rhythm[i].step = rhythm[i].rate * 1024 / rate;

@@ -1,4 +1,30 @@
 #include "realchip.h"
+#include <string.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <sched.h>
+#endif
+
+#ifndef _WIN32
+#include <dlfcn.h>
+
+static HMODULE LoadLibrary(LPCSTR path)
+{
+	return dlopen(path, RTLD_LAZY);
+}
+
+static BOOL FreeLibrary(HMODULE hmodule)
+{
+	return dlclose(hmodule) == 0;
+}
+
+static FARPROC GetProcAddress(HMODULE hmodule, LPCSTR name)
+{
+	return (FARPROC)dlsym(hmodule, name);
+}
+
+#endif
 
 // コンストラクタ
 realchip::realchip()
@@ -139,7 +165,11 @@ void realchip::SendAdpcmData(void *pData, DWORD size) {
 
 	// バッファが空になるまで待たせる
 	while (!m_pSoundChip->isBufferEmpty()) {
+#ifdef _WIN32
 		Sleep(0);
+#else
+		sched_yield();
+#endif
 	}
 	
 }

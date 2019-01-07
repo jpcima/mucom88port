@@ -5,8 +5,6 @@
 #ifndef __CMucom88IF_h
 #define __CMucom88IF_h
 
-#include <windows.h>
-
 /*------------------------------------------------------------*/
 //	for MUCOM88Win interface
 /*------------------------------------------------------------*/
@@ -32,7 +30,6 @@ typedef struct {
 	//	Memory Data structure
 	//	(*) = DLL側で書き換え可
 	//
-	HWND hwnd;							// メインウィンドウハンドル
 	int version;						// MUCOM88IFバージョン
 	char name[16];						// プラグイン名(英文字)
 	int	type;							// プラグインタイプ

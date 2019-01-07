@@ -145,7 +145,7 @@ void CMemBuf::Put( double data )
 }
 
 
-void CMemBuf::PutStr( char *data )
+void CMemBuf::PutStr( const char *data )
 {
 	char *p;
 	p = PreparePtr( strlen(data) );
@@ -153,7 +153,7 @@ void CMemBuf::PutStr( char *data )
 }
 
 
-void CMemBuf::PutStrDQ( char *data )
+void CMemBuf::PutStrDQ( const char *data )
 {
 	//		ダブルクォート内専用str
 	//
@@ -195,7 +195,7 @@ void CMemBuf::PutStrDQ( char *data )
 }
 
 
-void CMemBuf::PutStrBlock( char *data )
+void CMemBuf::PutStrBlock( const char *data )
 {
 	char *p;
 	p = PreparePtr( strlen(data)+1 );

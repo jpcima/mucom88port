@@ -6,11 +6,16 @@
 #define __mucomvm_h
 
 #include <stdio.h>
+#include <atomic>
 #include "Z80/Z80.h"
 #include "fmgen/opna.h"
-#include "soundds.h"
+#include "soundrt.h"
 #include "membuf.h"
 #include "realchip.h"
+#include "types.h"
+
+typedef struct uv_loop_s uv_loop_t;
+typedef struct uv_timer_s uv_timer_t;
 
 //#define DEBUGZ80_TRACE
 
@@ -32,7 +37,8 @@ enum {
 #define OPNACH_ADPCM 10
 #define OPNAREG_MAX 0x200
 
-class mucomvm : public Z80 {
+class mucomvm final : public Z80,
+					  public SoundDriver::SoundBlockGenerator {
 public:
 	mucomvm();
 	~mucomvm();
@@ -75,7 +81,6 @@ public:
 	void StartINT3(void);
 	void StopINT3(void);
 	void SetStreamTime(int time) { time_stream = time; }
-	void SetWindow(void *window) { master_window = (HWND)window; }
 	void SetIntCount(int value) { time_intcount = value; }
 	int GetIntCount(void) { return time_intcount; }
 	int GetPassTick(void) { return pass_tick; }
@@ -126,8 +131,7 @@ private:
 
 	//		音源
 	FM::OPNA *opn;
-	WinSoundDriver::DriverDS *snddrv;
-	HWND master_window;
+	SoundDriver::DriverRT *snddrv;
 
 	int sound_reg_select;
 	int sound_reg_select2;
@@ -148,40 +152,32 @@ private:
 	uint8_t pchwork[16];
 
 	//		タイマー
-	static void CALLBACK TimeProc(UINT, UINT, DWORD, DWORD, DWORD);
-	static DWORD WINAPI vThreadFunc(LPVOID pParam);
+	static void TimeProc(uv_timer_t *tm);
 
-	int StartThread(void);
-	int StopThread(void);
 	void UpdateTime(void);
-	void StreamSend(void);
-	void ThreadFunc(void);
 
-	UINT timer_period;
-	UINT timerid;
+	void StartGenerateSound();
+	void EndGenerateSound();
+	uint GenerateSoundBlock(float **data);
+	float *soundblock;
+	enum { soundblocklen = 64 };
+
 	int time_master;
 	int time_stream;
-	int time_scount;
 	int time_intcount;
 	int time_interrupt;
 	int pass_tick;
-	int last_tick;
-
 	int64_t last_ft;
 
 	void resetElapsedTime(void);
 	int getElapsedTime(void);
 	void checkThreadBusy(void);
 
-	//__int64 ;
+	uv_loop_t *loop;
+	uv_timer_t *timer;
 
-	HANDLE hevent;
-	HANDLE hthread;
-	DWORD threadid;
-
-	LONG sending;
+	std::atomic<bool> sending;
 	bool busyflag;
-	bool threadflag;
 	bool playflag;
 	bool int3flag;
 	int predelay;

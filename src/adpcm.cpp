@@ -1,4 +1,6 @@
-#include	"adpcm.h"
+#include "adpcm.h"
+#include <stdlib.h>
+#include <string.h>
 
 // コンストラクタ
 Adpcm::Adpcm(){
@@ -22,10 +24,10 @@ BYTE* Adpcm::waveToAdpcm(void *pData,DWORD dSize,DWORD &dAdpcmSize,DWORD dRate,D
 		return NULL;
 	}
 	// 先頭チャンクを設定
-	pChunk = reinterpret_cast<CHUNK_HED*>(reinterpret_cast<DWORD>(pChunk) + 4);
+	pChunk = reinterpret_cast<CHUNK_HED*>(reinterpret_cast<DWORD_PTR>(pChunk) + 4);
 	m_pWaveChunk = NULL;
 	m_pDataChunk = NULL;
-	while(reinterpret_cast<DWORD>(pChunk) < reinterpret_cast<DWORD>(pData) + dSize)
+	while(reinterpret_cast<DWORD_PTR>(pChunk) < reinterpret_cast<DWORD_PTR>(pData) + dSize)
 	{
 		// fmtチャンクの場合
 		if(pChunk->bID[0] == 'f' && pChunk->bID[1] == 'm' && pChunk->bID[2] == 't' && pChunk->bID[3] == ' '){
@@ -38,7 +40,7 @@ BYTE* Adpcm::waveToAdpcm(void *pData,DWORD dSize,DWORD &dAdpcmSize,DWORD dRate,D
 			m_pDataChunk = reinterpret_cast<DATA_CHUNK*>(pChunk);
 		}
 		// 次のチャンクへアドレスを加算する
-		pChunk = reinterpret_cast<CHUNK_HED*>(reinterpret_cast<DWORD>(pChunk) + pChunk->dChunkSize + 8);
+		pChunk = reinterpret_cast<CHUNK_HED*>(reinterpret_cast<DWORD_PTR>(pChunk) + pChunk->dChunkSize + 8);
 	}
 	// fmtチャンク及びdataチャンクが存在するか
 	if(m_pWaveChunk == NULL || m_pDataChunk == NULL){
@@ -114,7 +116,7 @@ short* Adpcm::resampling(DWORD &dSize,DWORD dRate,DWORD dPadSize){
 	int iResampleBuffSize = iSampleSize;
 	if(iSampleSize % (dPadSize * 2) > 0) iResampleBuffSize += ((dPadSize * 2) - (iSampleSize % (dPadSize * 2)));
 	short *pResampleBuff = new short[iResampleBuffSize];
-	ZeroMemory(pResampleBuff,sizeof(short) * iResampleBuffSize);
+	memset(pResampleBuff,0,sizeof(short) * iResampleBuffSize);
 	// リサンプリング処理を実施する
 	short iSampleCnt = 0;
 	int iSmple = 0;
@@ -122,23 +124,23 @@ short* Adpcm::resampling(DWORD &dSize,DWORD dRate,DWORD dPadSize){
 	iSmple = 0;
 	short *pResampleDis = pResampleBuff;
 	// リサンプリング後のファイルサイズを算出
-	BOOL	bUpdate = FALSE;
+	BOOL	bUpdate = false;
 	if(iDisRate != static_cast<int>(m_pWaveChunk->dRate)){
 		for(int iCnt = 0; iCnt < iPcmSize; iCnt++){
 			iSmple += static_cast<int>(pPcm[iCnt]);		// サンプルを加算する
 			iSampleCnt++;
 			iDiff += iDisRate;
-			bUpdate = FALSE;
+			bUpdate = false;
 			while(iDiff >= iSrcRate){
 				*pResampleDis++ = static_cast<short>(iSmple / iSampleCnt);
 				// 書き出し
 				iDiff -= iSrcRate;
-				bUpdate = TRUE;
+				bUpdate = true;
 			}
-			if(bUpdate == TRUE){
+			if(bUpdate){
 				iSampleCnt = 0;
 				iSmple = 0;
-				bUpdate = FALSE;
+				bUpdate = false;
 			}
 		}
 		if(iSampleCnt > 0){
@@ -165,7 +167,7 @@ int Adpcm::encode(short *pSrc,unsigned char *pDis,DWORD iSampleSize){
 	int iCnt;
 	long i , dn , xn , stepSize;
 	unsigned char adpcm;
-	unsigned char adpcmPack;
+	unsigned char adpcmPack = 0;
 
 	// 初期値設定
 	xn			= 0;

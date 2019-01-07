@@ -10,7 +10,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#include "windows.h"
+#include <uv.h>
 #include "cmucom.h"
 
 //#define DEBUG_MUCOM
@@ -21,7 +21,7 @@
 
 static void usage1( void )
 {
-static 	char *p[] = {
+static const char *p[] = {
 	"usage: mucom88 [options] [filename]",
 	"       -p [filename] setload PCM file",
 	"       -v [filename] set load voice file",
@@ -47,8 +47,8 @@ int main( int argc, char *argv[] )
 	int cmpopt,ppopt;
 	int scci_opt;
 	char fname[1024];
-	char *pcmfile;
-	char *outfile;
+	const char *pcmfile;
+	const char *outfile;
 	char *voicefile;
 
 	//	check switch and prm
@@ -175,9 +175,8 @@ int main( int argc, char *argv[] )
 	if (st) return st;
 
 	if ((cmpopt & 2)==0) {
-		while (1) {
-			Sleep(20);
-		}
+		uv_loop_t *loop = uv_default_loop();
+		uv_run(loop, UV_RUN_DEFAULT);
 	}
 
 	return 0;

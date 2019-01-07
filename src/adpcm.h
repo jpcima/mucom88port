@@ -1,6 +1,6 @@
 #pragma once
 
-#include	<windows.h>
+#include "types.h"
 
 typedef struct {
 	BYTE	bID[4];		// ƒwƒbƒ_

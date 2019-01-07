@@ -2,7 +2,7 @@
 //	Sound Chip common Interface
 //----------------------------------------------------------------------
 #pragma once
-#include	<Windows.h>
+#include "types.h"
 
 // Sound Interface Infomation
 typedef struct {

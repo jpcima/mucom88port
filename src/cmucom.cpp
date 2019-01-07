@@ -60,23 +60,6 @@ static int htoi(char *str)
 	return conv;
 }
 
-static void strcase(char *target)
-{
-	//		strをすべて小文字に(全角対応版)
-	//
-	unsigned char *p;
-	unsigned char a1;
-	p = (unsigned char *)target;
-	while (1) {
-		a1 = *p; if (a1 == 0) break;
-		*p = tolower(a1);
-		p++;							// 検索位置を移動
-		if (a1 >= 129) {					// 全角文字チェック
-			if ((a1 <= 159) || (a1 >= 224)) p++;
-		}
-	}
-}
-
 static int strpick_spc(char *target,char *dest,int strmax)
 {
 	//		strの先頭からspaceまでを小文字として取り出す
@@ -139,20 +122,11 @@ void CMucom::Init(void *window, int option)
 	vm = new mucomvm;
 	flag = 1;
 
-	if (window != NULL) {
-		vm->SetWindow(window);
-	}
-	else {
-		//OleInitialize(NULL);
-	}
-	if (FAILED(CoInitializeEx(NULL, COINIT_APARTMENTTHREADED))) {
-		return;
-	}
 	vm->SetOption(option);
 	vm->InitSoundSystem();
 	MusicBufferInit();
 
-	Mucom88Plugin_Init((HWND)window,vm,this);
+	Mucom88Plugin_Init(window,vm,this);
 }
 
 
@@ -235,13 +209,14 @@ void CMucom::Reset(int option)
 	}
 }
 
-void CMucom::SetUUID(char *uuid)
+void CMucom::SetUUID(const char *uuid)
 {
 	if (uuid == NULL) {
 		user_uuid[0] = 0;
 		return;
 	}
 	strncpy(user_uuid,uuid,64);
+	user_uuid[64] = '\0';
 }
 
 
@@ -259,7 +234,7 @@ int CMucom::Play(int num)
 	MUBHED *hed;
 	char *data;
 	char *pcmdata;
-	char *pcmname;
+	const char *pcmname;
 	int datasize;
 	int pcmsize;
 
@@ -486,11 +461,11 @@ Compiler support
 */
 /*------------------------------------------------------------*/
 
-char *CMucom::GetTextLine(char *text)
+const char *CMucom::GetTextLine(const char *text)
 {
 	//	1行分のデータを格納
 	//
-	unsigned char *p = (unsigned char *)text;
+	const unsigned char *p = (const unsigned char *)text;
 	unsigned char a1;
 	int mptr = 0;
 
@@ -521,21 +496,21 @@ char *CMucom::GetTextLine(char *text)
 }
 
 
-char *CMucom::GetInfoBuffer(void)
+const char *CMucom::GetInfoBuffer(void)
 {
 	if (infobuf == NULL) return "";
 	return infobuf->GetBuffer();
 }
 
 
-char *CMucom::GetInfoBufferByName(char *name)
+const char *CMucom::GetInfoBufferByName(const char *name)
 {
 	//		infobuf内の指定タグ項目を取得
 	//		name = タグ名(英小文字)
 	//		(結果が""の場合は該当項目なし)
 	//
 	int len;
-	char *src = GetInfoBuffer();
+	const char *src = GetInfoBuffer();
 	while (1) {
 		if (src == NULL) break;
 		src = GetTextLine(src);
@@ -604,7 +579,7 @@ int CMucom::ProcessHeader(char *text)
 	//		#comment ----
 	//		#url ----
 	//
-	char *src = text;
+	const char *src = text;
 	DeleteInfoBuffer();
 	infobuf = new CMemBuf();
 	while (1) {
@@ -621,11 +596,11 @@ int CMucom::ProcessHeader(char *text)
 }
 
 
-int CMucom::StoreBasicSource(char *text, int line, int add)
+int CMucom::StoreBasicSource(const char *text, int line, int add)
 {
 	//	BASICソースの形式でリストを作成
 	//
-	char *src = text;
+	const char *src = text;
 	int ln = line;
 	int mptr = 1;
 	int linkptr;
@@ -682,9 +657,10 @@ int CMucom::Compile(char *text, const char *filename, int option)
 
 	//		voiceタグの解析
 	if ((option & 1) == 0) {
-		char voicefile[MUCOM_FILE_MAXSTR];
+		char voicefile[MUCOM_FILE_MAXSTR + 1];
 		strncpy(voicefile, GetInfoBufferByName("voice"), MUCOM_FILE_MAXSTR);
 		if (voicefile[0]) {
+			voicefile[MUCOM_FILE_MAXSTR] = '\0';
 			LoadFMVoice(voicefile);
 		}
 	}
@@ -833,7 +809,7 @@ int CMucom::SaveMusic(const char *fname,int start, int length, int option)
 	char *header;
 	char *footer;
 	char *pcmdata;
-	char *pcmname;
+	const char *pcmname;
 	int hedsize;
 	int footsize;
 	int pcmsize;
@@ -917,7 +893,7 @@ char *CMucom::MUBGetPCMData(MUBHED *hed, int &size)
 	char *p;
 	p = (char *)hed;
 	p += hed->pcmdata;
-	if (hed->pcmdata == 0) return NULL;
+	if (hed->pcmdata == 0) { size = 0; return NULL; }
 	size = hed->pcmsize;
 	if (size == 0) return NULL;
 	return p;

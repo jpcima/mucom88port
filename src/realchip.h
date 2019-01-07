@@ -1,5 +1,5 @@
 #pragma once
-#include <Windows.h>
+#include "types.h"
 #include "scci.h"
 #include "SCCIDefines.h"
 
