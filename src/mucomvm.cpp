@@ -209,7 +209,7 @@ void mucomvm::InitSoundSystem(void)
 	timer = new uv_timer_t;
 	timer->data = this;
 	uv_timer_init(loop, timer);
-	uv_timer_start(timer, TimeProc, 1, 1);
+	uv_timer_start(timer, (uv_timer_cb)TimeProc, 1, 1);
 
 	//	ストリーム用スレッド
 	playflag = true;
