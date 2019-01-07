@@ -5,6 +5,8 @@
 namespace SoundDriver
 {
 
+static const double streamLatency = 20e-3;
+
 DriverRT::DriverRT()
 {
 	audio = NULL;
@@ -34,7 +36,7 @@ bool DriverRT::Init(uint rate, uint ch, uint buflen)
 	opts.flags = RTAUDIO_ALSA_USE_DEFAULT|RTAUDIO_JACK_DONT_CONNECT;
 	opts.streamName = "mucom88";
 
-	uint bufferframes = (uint)ceil(deviceRate * buflen * 1e-3);
+	uint bufferframes = (uint)ceil(deviceRate * streamLatency);
 	audio->openStream(
 		&param, NULL, RTAUDIO_FLOAT32, deviceRate, &bufferframes, &AudioCallback, this, &opts);
 
