@@ -403,7 +403,7 @@ void Operator::Prepare()
 			SetEGRate(Min(63, rr_ + key_scale_rate_));
 			break;
 		default:
-			assert(false);
+			break;
 		}
 
 		// SSG-EG
@@ -583,7 +583,7 @@ void FM::Operator::EGCalc()
 					ShiftPhase(off);
 					break;
 				default:
-					assert(false);
+					break;
 				}
 			}
 		}
